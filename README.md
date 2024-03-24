@@ -24,6 +24,7 @@ cd face-segmentation-app
 Install the required dependencies:
 ```
 pip install -r requirements.txt
+pip install -r requirements-backend.txt
 ```
 
 
@@ -31,7 +32,7 @@ pip install -r requirements.txt
 Run the Streamlit app:
 
 ```
-streamlit run app.py
+streamlit run app_standalone.py
 ```
 
 - Open the provided URL in your web browser.
