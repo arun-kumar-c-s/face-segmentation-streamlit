@@ -43,11 +43,7 @@ streamlit run app_standalone.py
 
 
 ## Built with
-Streamlit
-OpenCV
-NumPy
-PyTorch
-Transformers
+Streamlit, OpenCV, Transformers
 
 ## Credits
 - SegFormer model: jonathandinu/face-parsing
