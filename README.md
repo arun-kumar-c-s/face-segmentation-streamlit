@@ -46,5 +46,5 @@ streamlit run app_standalone.py
 Streamlit, OpenCV, Transformers
 
 ## Credits
-- SegFormer model: jonathandinu/face-parsing
+- SegFormer model: HuggingFace, jonathandinu/face-parsing
 - Haar Cascade classifier: OpenCV
