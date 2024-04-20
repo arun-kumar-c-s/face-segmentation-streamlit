@@ -1,37 +1,57 @@
-import streamlit as st
-import requests
+import os
+import io
+import base64
+from fastapi import FastAPI, UploadFile, File
+from transformers import SegformerImageProcessor, SegformerForSemanticSegmentation
 from PIL import Image
-from io import BytesIO
+import torch
+from torch import nn
+import numpy as np
 
-st.title("Face Segmentation App")
-run_on_all_photos = st.sidebar.radio('🚨 Override num_face limit. (Result might be inaccurate)', ["No", "Yes"], horizontal=True)
-uploaded_file = st.file_uploader("Upload your photo", type=["jpg", "jpeg", "png"])
+app = FastAPI()
 
-if uploaded_file is not None:
-    img = Image.open(uploaded_file)
-    img_rgb = img.convert('RGB')
+# Set the cache directory for Hugging Face models
+cache_dir = "/app/model_cache"
+os.environ["TRANSFORMERS_CACHE"] = cache_dir
 
-    if st.button('Process'):
-        with st.spinner('Processing...'):
-            files = {'image': uploaded_file.getvalue()}
-            params = {'run_on_all_photos': run_on_all_photos}
-            response = requests.post('http://backend:8000/process', files=files, params=params)
+# Load the face segmentation model
+device = "cpu"
+image_processor = SegformerImageProcessor.from_pretrained("jonathandinu/face-parsing")
+model = SegformerForSemanticSegmentation.from_pretrained("jonathandinu/face-parsing")
+model.to(device)
 
-            if response.status_code == 200:
-                data = response.json()
-                original_image = Image.open(BytesIO(uploaded_file.getvalue()))
-                detected_image = Image.open(BytesIO(data['detected_image']))
-                segmented_image = Image.open(BytesIO(data['segmented_image']))
+@app.post("/process_image")
+async def process_image(file: UploadFile = File(...)):
+    # Read the uploaded image file
+    contents = await file.read()
+    image = Image.open(io.BytesIO(contents)).convert('RGB')
 
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.image(original_image, caption="Original", use_column_width=True)
-                with col2:
-                    st.image(detected_image, caption="Detected", use_column_width=True)
-                    st.write(f"Number of faces: {data['n_faces']}")
-                with col3:
-                    st.image(segmented_image, caption="Segmented", use_column_width=True)
+    # Perform face segmentation
+    segmented_image_data = run_inference(image)
 
-                st.download_button(label="Download Segmented Image", data=data['segmented_image'], file_name="segmented.png", mime="image/png")
-            else:
-                st.error(response.json()['detail'])
+    return {"segmented_image": segmented_image_data}
+
+def run_inference(image):
+    inputs = image_processor(images=image, return_tensors="pt").to(device)
+    outputs = model(**inputs)
+    logits = outputs.logits
+    upsampled_logits = nn.functional.interpolate(logits, size=image.size[::-1], mode='bilinear', align_corners=False)
+    labels = upsampled_logits.argmax(dim=1)[0]
+    labels_viz = labels.cpu().numpy()
+    unwanted_labels = [0, 16, 17, 18]
+    segment = np.isin(labels_viz, unwanted_labels, invert=True)
+
+    rgba_image = np.zeros((*segment.shape, 4), dtype=np.uint8)
+    rgb_image = np.array(image)
+    rgba_image[:,:, :3] = rgb_image
+    rgba_image[:,:, 3] = segment * 255
+
+    segmented_image = Image.fromarray(rgba_image)
+    buffered = io.BytesIO()
+    segmented_image.save(buffered, format="PNG")
+    segmented_image_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    return segmented_image_base64
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

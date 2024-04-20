@@ -1,3 +1,12 @@
 numpy==1.26.4
 streamlit==1.32.2
 requests==2.31.0
+uvicorn==0.29.0
+fastapi==0.110.2
+pillow
+numpy==1.26.4
+opencv-python-headless==4.9.0.80
+torch==2.2.1
+transformers==4.39.1
+requests==2.31.0
+python-mulitipart
